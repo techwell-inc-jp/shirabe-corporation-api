@@ -1,0 +1,45 @@
+name = "shirabe-corporation-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Workers ルート(住所/text と同じ「別 Worker + ルート振り分け」方式)。
+# shirabe.dev/api/v1/corporation/* を本 Worker が捌く。
+# 暦 API が shirabe.dev apex を custom_domain で受けるが、具体パスは本ルートが優先。
+[[routes]]
+pattern = "shirabe.dev/api/v1/corporation/*"
+zone_name = "shirabe.dev"
+
+# B-1 SEO 静的ページ(/docs/corporation-*)。他 API のパスと重ならない。
+[[routes]]
+pattern = "shirabe.dev/docs/corporation-*"
+zone_name = "shirabe.dev"
+
+[vars]
+API_VERSION = "0.1.0-poc"
+
+# === bindings(PoC 確定後に有効化、現時点では未 commit)===
+#
+# D1: 全件 ~500 万社 = KV 1 namespace(1GB)超過見込み。D1 主体が有力候補だが、
+# 全件 CSV 実サイズ実測で最終確定するまで binding を commit しない(measure-first)。
+# 確定後:
+#   npx wrangler d1 create shirabe-corporation
+# で database_id を取得し以下を有効化:
+# [[d1_databases]]
+# binding = "CORP_DB"
+# database_name = "shirabe-corporation"
+# database_id = "<PoC 後に設定>"
+#
+# API_KEYS: 暦/住所と同一の集約 namespace を共有予定(#19 hub: cross-API は
+# 既存 API_KEYS 構造で実現可)。共有判断確定後に有効化。
+# [[kv_namespaces]]
+# binding = "API_KEYS"
+# id = "<address/calendar と同一 namespace>"
+#
+# STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
+# `wrangler secret put` で注入(平文を本ファイルに書かない)。
+#
+# OpenAPI YAML をテキストモジュールとしてバンドルに取り込む設定(docs 追加後に有効化):
+# [[rules]]
+# type = "Text"
+# globs = ["**/*.yaml"]
+# fallthrough = true

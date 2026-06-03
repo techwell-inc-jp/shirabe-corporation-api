@@ -1,0 +1,18 @@
+node_modules
+dist
+.wrangler
+.dev.vars
+.env
+.env.*
+*.log
+.DS_Store
+coverage
+
+# PoC data scratch(国税庁 CSV 実測用、commit 禁止)
+_data
+*.csv
+*.zip
+
+# IDE
+.vscode
+.idea
