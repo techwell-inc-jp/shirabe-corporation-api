@@ -18,8 +18,8 @@ describe("corporation API skeleton", () => {
     expect(body.version).toBe(ENV.API_VERSION);
   });
 
-  it("planned endpoints return 501 with typed error", async () => {
-    for (const ep of ["lookup", "search", "normalize", "validate", "batch"]) {
+  it("data-dependent endpoints return 501 with typed error", async () => {
+    for (const ep of ["lookup", "search", "normalize", "batch"]) {
       const res = await app.request(
         `/api/v1/corporation/${ep}`,
         { method: "POST" },

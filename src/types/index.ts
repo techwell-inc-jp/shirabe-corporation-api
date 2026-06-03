@@ -26,3 +26,92 @@ export interface ApiError {
     details?: unknown;
   };
 }
+
+/**
+ * 国税庁 全件 CSV(NTA Web-API Ver.4 系)の 30 列レイアウト(0 始まり、ヘッダ無し)。
+ * 出典: WS-1 実測(knowledge/20260530-corporation-api-ws1-fulldata-measurement.md §3)。
+ */
+export const CsvColumn = {
+  SEQUENCE: 0,
+  LAW_ID: 1,
+  PROCESS_KIND: 2,
+  CORRECT_KIND: 3,
+  UPDATED_AT: 4,
+  CHANGED_AT: 5,
+  NAME: 6,
+  NAME_IMAGE_ID: 7,
+  CORP_TYPE: 8,
+  PREFECTURE: 9,
+  CITY: 10,
+  STREET: 11,
+  ADDRESS_IMAGE_ID: 12,
+  PREFECTURE_CODE: 13,
+  CITY_CODE: 14,
+  POSTAL_CODE: 15,
+  FOREIGN_ADDRESS: 16,
+  FOREIGN_ADDRESS_IMAGE_ID: 17,
+  CLOSED_AT: 18,
+  CLOSED_REASON: 19,
+  SUCCESSOR_LAW_ID: 20,
+  CHANGE_DETAIL: 21,
+  ASSIGNED_AT: 22,
+  LATEST: 23,
+  NAME_EN: 24,
+  PREFECTURE_EN: 25,
+  ADDRESS_EN: 26,
+  FOREIGN_ADDRESS_EN: 27,
+  KANA: 28,
+  SEARCH_EXCLUDED: 29,
+} as const;
+
+/** 国税庁 全件 CSV の固定列数。 */
+export const CSV_COLUMN_COUNT = 30;
+
+/** D1 に格納する正規化済み法人レコード(空文字列は null 化)。 */
+export interface CorporationRecord {
+  lawId: string;
+  name: string;
+  nameKana: string | null;
+  nameEnglish: string | null;
+  corpType: string | null;
+  prefecture: string | null;
+  city: string | null;
+  street: string | null;
+  prefectureCode: string | null;
+  cityCode: string | null;
+  postalCode: string | null;
+  assignedAt: string | null;
+  closedAt: string | null;
+  closedReason: string | null;
+  successorLawId: string | null;
+  /** 最新履歴 = 1。 */
+  latest: boolean;
+  /** 検索対象除外 = 1。 */
+  searchExcluded: boolean;
+}
+
+/** 国税庁出典 attribution(規約第 6 条 + LLM 出典伝搬)。 */
+export interface Attribution {
+  source: string;
+  provider: string;
+  license: string;
+  licenseUrl: string;
+  notice: string;
+  modified: boolean;
+  modificationNotice?: string;
+}
+
+/** validate エンドポイントの結果。 */
+export interface ValidateResult {
+  lawId: string;
+  /** 13 桁数字の形式 OK か。 */
+  formatValid: boolean;
+  /** チェックディジット(mod 9)一致か。 */
+  checksumValid: boolean;
+  /** 形式 + チェックディジット双方 OK か。 */
+  valid: boolean;
+  /** registry 実在確認。D1 データ層未接続のため現状 null。 */
+  existsInRegistry: boolean | null;
+  /** 補足。 */
+  note?: string;
+}
