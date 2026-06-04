@@ -16,3 +16,6 @@ _data
 # IDE
 .vscode
 .idea
+
+# Claude Code memory (personal, repo に含めない)
+CLAUDE.md
