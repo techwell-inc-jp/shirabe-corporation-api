@@ -5,11 +5,17 @@
 
 /**
  * Cloudflare Workers の環境バインディング。
- * PoC 段階では vars のみ。D1 / KV binding は storage 確定後に追加する。
+ * PoC 段階では vars のみ。D1 binding(CORP_DB)は WS-2 provisioning 後に wrangler.toml で有効化する。
+ * 型は optional とし、未 provisioning でも build/型整合が成立する(handler 側で存在を判定)。
  */
 export interface Env {
   /** API バージョン(wrangler.toml [vars])。 */
   API_VERSION: string;
+  /**
+   * 法人データ D1(`corporations` 表)。WS-2(`wrangler d1 create`)後に binding 有効化。
+   * 未 provisioning の間は undefined となり、依存 endpoint は 503 を返す。
+   */
+  CORP_DB?: D1Database;
 }
 
 /**
@@ -99,6 +105,39 @@ export interface Attribution {
   notice: string;
   modified: boolean;
   modificationNotice?: string;
+}
+
+/** lookup エンドポイントの成功レスポンス(単一法人 + 出典)。 */
+export interface LookupResponse {
+  corporation: CorporationRecord;
+  attribution: Attribution;
+}
+
+/** search エンドポイントの成功レスポンス(前方一致結果 + 出典 + ページング)。 */
+export interface SearchResponse {
+  results: CorporationRecord[];
+  /** 本ページの件数(results.length)。 */
+  count: number;
+  limit: number;
+  offset: number;
+  attribution: Attribution;
+}
+
+/** batch lookup の 1 件分の結果。 */
+export interface BatchLookupItem {
+  lawId: string;
+  /** 形式 + checksum が妥当か(不正なら検索もしない)。 */
+  valid: boolean;
+  /** registry に存在したか。 */
+  found: boolean;
+  /** 見つかった法人(なければ null)。 */
+  corporation: CorporationRecord | null;
+}
+
+/** batch エンドポイントの成功レスポンス。 */
+export interface BatchResponse {
+  results: BatchLookupItem[];
+  attribution: Attribution;
 }
 
 /** validate エンドポイントの結果。 */
