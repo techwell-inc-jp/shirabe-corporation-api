@@ -17,7 +17,11 @@
 | POST | `/api/v1/corporation/validate` | 法人番号 checksum(mod 9)+ 存在確認 |
 | POST | `/api/v1/corporation/batch` | 複数 endpoint 混在 bulk(最大 100 items) |
 
-> PoC 段階では各エンドポイントは `501 NOT_IMPLEMENTED` を返します。
+> **実装状況（PoC）**: `health` / `validate` / `normalize` はデータ層不要の純ロジックで稼働。
+> `lookup` / `search` / `batch` は query ロジック実装済みだが、法人データ D1（`CORP_DB`）が
+> 未 provisioning（WS-2）の間は `503 DATA_LAYER_UNAVAILABLE` を返す（binding を足せば無改修で稼働）。
+>
+> **API 仕様**: [`docs/openapi.yaml`](docs/openapi.yaml)（OpenAPI 3.1 草案、6 endpoint の request/response/エラー/attribution を記述）。
 
 ## データソースと出典
 

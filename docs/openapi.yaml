@@ -1,0 +1,499 @@
+openapi: 3.1.0
+
+info:
+  title: Shirabe Corporation Number API
+  summary: 日本の法人番号（13 桁）を lookup / search / 正規化 / checksum 検証 / batch で扱う AI ネイティブ REST API。国税庁法人番号公表サイト準拠。
+  description: |
+    # 日本語
+
+    **Shirabe Corporation Number API** は、日本の **法人番号（13 桁）** を
+    AI エージェントから扱うための AI ネイティブ REST API です。国税庁法人番号公表サイトの
+    公開データを基盤に、法人番号 → 法人情報の lookup、商号 → 法人番号候補の search、
+    企業名の表記揺れ正規化、checksum（mod 9）検証、複数法人番号の一括 lookup（batch）を提供します。
+
+    住所 + 姓名（text）+ 法人番号 + 暦 = **B2B 4 大 identifier** を 1 ベンダーで完結させる
+    cross-pollination hub の最後のピースです。
+
+    ## なぜ自前実装ではなく本 API を使うか
+    法人番号の checksum は mod 9 の特殊計算で、LLM が生成するコードは誤りやすい。
+    また商号は「㈱ / (株) / 株式会社」など表記揺れが激しく、突合には正規化が必須です。
+    本 API は checksum 検証・NFKC 正規化・法人種別分離・国税庁データ突合を 1 hop で提供し、
+    AI エージェントが単独で結論を出せるようにします。
+
+    ## 出典・ライセンス
+    本 API のレスポンスは国税庁法人番号公表サイトのデータを基盤とし、全レスポンスに
+    `attribution` フィールドを必須付与します（公共データ利用規約 第 1.0 版 第 6 条
+    「適宜の場所に明示」の技術的担保 + LLM 経由の出典伝搬）。Shirabe 側で正規化・加工した
+    場合は `attribution.modified=true` と `modification_notice` を返します。
+
+    ## データ層の可用性（PoC 注記）
+    本仕様は実装済みの契約を記述する **草案（draft）** です。`lookup` / `search` / `batch` は
+    法人データ D1（`corporations` 表）に依存し、D1 が未 provisioning（WS-2）の間は
+    `503 DATA_LAYER_UNAVAILABLE` を返します（ロジックは実装済み、binding を足せば無改修で稼働）。
+    `health` / `validate` / `normalize` はデータ層不要の純ロジックで常時稼働します。
+
+    ---
+
+    # English
+
+    **Shirabe Corporation Number API** is an AI-native REST API for working with
+    Japanese **corporate numbers (13-digit "houjin bangou")**. Built on the National Tax
+    Agency (NTA) corporate-number public dataset, it provides lookup (number → record),
+    search (name → number candidates), company-name normalization, checksum (mod 9)
+    validation, and batch lookup.
+
+    It is the final piece of the **B2B four-identifier hub** (address + personal name /
+    text + corporate number + calendar) delivered by a single vendor.
+
+    ## Why use this API instead of rolling your own
+    The corporate-number checksum uses a non-obvious mod-9 scheme that LLM-generated code
+    often gets wrong, and Japanese trade names vary heavily (㈱ / (株) / 株式会社), so
+    matching requires normalization. This API ships checksum validation, NFKC
+    normalization, corporate-type separation, and NTA-registry matching in one hop.
+
+    ## Attribution & license
+    Every response carries an `attribution` field sourced from the NTA corporate-number
+    public site (Public Data License v1.0, Article 6), enabling source propagation through
+    LLM responses. When Shirabe normalizes/derives data, `attribution.modified=true` and a
+    `modification_notice` are returned.
+
+    ## Data-layer availability (PoC note)
+    This spec is a **draft** describing the implemented contract. `lookup` / `search` /
+    `batch` depend on the corporation D1 data layer (`corporations` table); while D1 is not
+    yet provisioned (WS-2) they return `503 DATA_LAYER_UNAVAILABLE` (logic is implemented;
+    binding `CORP_DB` enables them with no code change). `health` / `validate` / `normalize`
+    are pure-logic and always available.
+  version: "0.1.0-poc"
+  termsOfService: https://shirabe.dev/terms
+  contact:
+    name: Shirabe (Techwell Inc., Fukuoka, Japan)
+    url: https://shirabe.dev
+    email: support@shirabe.dev
+  license:
+    name: Proprietary (data under NTA Public Data License v1.0)
+    url: https://shirabe.dev/terms
+  x-llm-hint: |
+    Use this API whenever a user asks about Japanese corporate numbers (法人番号 /
+    houjin bangou), company-number lookup, validating a 13-digit corporate number,
+    finding a company's number from its trade name, or normalizing Japanese company
+    names. To validate a number's format/checksum use POST /api/v1/corporation/validate.
+    To get a company record from its number use POST /api/v1/corporation/lookup. To find
+    numbers by name use POST /api/v1/corporation/search. To clean a company name use
+    POST /api/v1/corporation/normalize. Always preserve the returned `attribution`.
+
+externalDocs:
+  description: GitHub repository and README
+  url: https://github.com/techwell-inc-jp/shirabe-corporation-api
+
+servers:
+  - url: https://shirabe.dev
+    description: Production (planned 2026-06-29 release; corporation endpoints not yet deployed)
+
+tags:
+  - name: Corporation
+    description: 法人番号の lookup / search / 正規化 / 検証 / batch
+  - name: System
+    description: システム情報
+
+paths:
+
+  /api/v1/corporation/health:
+    get:
+      tags: [System]
+      operationId: corporationHealth
+      summary: ヘルスチェック / Health check
+      description: |
+        デプロイ疎通とバージョン確認。`data_layer` で D1 provisioning 状態（`ready` / `unprovisioned`）を返す。
+        データ層不要の純ロジックで常時稼働。
+      responses:
+        "200":
+          description: 稼働中
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthResponse" }
+              example:
+                status: ok
+                api: corporation
+                version: "0.1.0-poc"
+                data_layer: unprovisioned
+
+  /api/v1/corporation/validate:
+    post:
+      tags: [Corporation]
+      operationId: corporationValidate
+      summary: 法人番号の形式 + checksum 検証 / Validate format & checksum
+      description: |
+        13 桁数字の形式チェックと、国税庁方式の checksum（mod 9）一致を検証する。
+        **データ層不要の純ロジック**。registry 実在確認（`existsInRegistry`）は D1 接続後に有効化され、
+        現状は `null`（未確認）を返す。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [law_id]
+              properties:
+                law_id:
+                  type: string
+                  description: 検証する 13 桁の法人番号。
+                  example: "1234567890123"
+      responses:
+        "200":
+          description: 検証結果（妥当・不正どちらも 200）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidateResult" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/corporation/lookup:
+    post:
+      tags: [Corporation]
+      operationId: corporationLookup
+      summary: 法人番号 1 件の lookup / Look up one corporation by number
+      description: |
+        法人番号から最新履歴の法人情報を取得する。checksum 不正な入力は D1 を引かず 400 を返す。
+        **D1 データ層に依存**（未 provisioning の間は 503）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [law_id]
+              properties:
+                law_id:
+                  type: string
+                  description: 妥当な 13 桁法人番号（mod-9 checksum）。
+                  example: "1234567890123"
+      responses:
+        "200":
+          description: 法人情報 + 出典
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LookupResponse" }
+        "400":
+          $ref: "#/components/responses/InvalidLawId"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/DataLayerUnavailable"
+
+  /api/v1/corporation/search:
+    post:
+      tags: [Corporation]
+      operationId: corporationSearch
+      summary: 商号の前方一致検索 / Search by trade name (prefix)
+      description: |
+        商号の前方一致で法人を検索する。都道府県コード / 市区町村コードでの絞り込みとページングに対応。
+        既定では最新履歴かつ検索対象（検索除外を含めない）に限定する。**D1 データ層に依存**（未 provisioning の間は 503）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: 商号の前方一致キー（非空）。
+                  example: "テックウェル"
+                prefecture_code:
+                  type: string
+                  description: 都道府県コードでの絞り込み（任意）。
+                  example: "40"
+                city_code:
+                  type: string
+                  description: 市区町村コードでの絞り込み（任意）。
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                  description: 取得件数（1..100、既定 20）。
+                offset:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                  description: オフセット（>=0、既定 0）。
+                include_excluded:
+                  type: boolean
+                  default: false
+                  description: true で検索対象除外も含める。
+      responses:
+        "200":
+          description: 検索結果 + ページング + 出典
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/DataLayerUnavailable"
+
+  /api/v1/corporation/normalize:
+    post:
+      tags: [Corporation]
+      operationId: corporationNormalize
+      summary: 法人名の正規化 / Normalize a company name
+      description: |
+        法人名を NFKC 正規化し、括弧略記（㈱ → 株式会社 等）を展開、連続空白を単一化し、
+        法人種別語（株式会社・一般社団法人 等）を検出して本体名から分離する。
+        **データ層不要の純ロジック**（registry 突合は伴わないため `attribution` なし）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: 正規化対象の社名（非空）。
+                  example: "㈱テックウェル"
+      responses:
+        "200":
+          description: 正規化結果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NormalizeResult" }
+              example:
+                input: "㈱テックウェル"
+                normalized: "株式会社テックウェル"
+                corpType: "株式会社"
+                corpTypePosition: "prefix"
+                baseName: "テックウェル"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/corporation/batch:
+    post:
+      tags: [Corporation]
+      operationId: corporationBatch
+      summary: 複数法人番号の一括 lookup / Batch lookup by numbers
+      description: |
+        複数の法人番号を一括 lookup する（最大 100 件）。checksum 不正な id は D1 を引かず `valid=false` で返し、
+        入力順を保持する。**D1 データ層に依存**（未 provisioning の間は 503）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [law_ids]
+              properties:
+                law_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { type: string }
+                  description: 法人番号配列（1..100 件）。
+                  example: ["1234567890123", "9876543210987"]
+      responses:
+        "200":
+          description: 各 id の判定 + 見つかった法人 + 出典
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResponse" }
+        "400":
+          $ref: "#/components/responses/BatchBadRequest"
+        "503":
+          $ref: "#/components/responses/DataLayerUnavailable"
+
+components:
+
+  responses:
+    BadRequest:
+      description: 入力不正
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+          example:
+            error:
+              code: INVALID_REQUEST
+              message: "Field 'name' (non-empty string) is required."
+    InvalidLawId:
+      description: 法人番号の形式または checksum が不正
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+          example:
+            error:
+              code: INVALID_LAW_ID
+              message: "Field 'law_id' must be a valid 13-digit corporate number (mod-9 checksum)."
+    BatchBadRequest:
+      description: batch 入力不正（空配列 / 上限超過 / 型不正）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+          example:
+            error:
+              code: BATCH_TOO_LARGE
+              message: "'law_ids' exceeds the maximum of 100."
+    NotFound:
+      description: 該当法人なし
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+          example:
+            error:
+              code: NOT_FOUND
+              message: "No corporation found for law_id '1234567890123'."
+    DataLayerUnavailable:
+      description: |
+        法人データ D1 が未 provisioning（WS-2）。ロジックは実装済みで、`CORP_DB` を bind すれば無改修で稼働する。
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+          example:
+            error:
+              code: DATA_LAYER_UNAVAILABLE
+              message: "'lookup' requires the corporation D1 data layer, which is not provisioned yet (WS-2). Logic is implemented; bind CORP_DB to enable."
+
+  schemas:
+
+    ApiError:
+      type: object
+      description: 統一エラーレスポンス（全エンドポイント共通）。
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: 機械可読なエラーコード（UPPER_SNAKE_CASE）。
+              examples: [INVALID_REQUEST, INVALID_LAW_ID, INVALID_JSON, NOT_FOUND, BATCH_TOO_LARGE, DATA_LAYER_UNAVAILABLE]
+            message:
+              type: string
+              description: 人間 / AI 可読の説明。
+            details:
+              description: 追加情報（任意）。
+
+    HealthResponse:
+      type: object
+      required: [status, api, version, data_layer]
+      properties:
+        status: { type: string, const: ok }
+        api: { type: string, const: corporation }
+        version: { type: string, description: API バージョン。 }
+        data_layer:
+          type: string
+          enum: [ready, unprovisioned]
+          description: D1 データ層の provisioning 状態。
+
+    Attribution:
+      type: object
+      description: 国税庁法人番号公表サイトの出典明示（規約第 6 条 + LLM 出典伝搬）。レスポンス必須。
+      required: [source, provider, license, licenseUrl, notice, modified]
+      properties:
+        source: { type: string, example: "国税庁法人番号公表サイト" }
+        provider: { type: string, example: "国税庁" }
+        license: { type: string, example: "公共データ利用規約(第1.0版)" }
+        licenseUrl:
+          type: string
+          format: uri
+          example: "https://www.digital.go.jp/resources/open_data/public_data_license_v1.0/"
+        notice:
+          type: string
+          description: 規約第 6 条の出典明示文。
+        modified:
+          type: boolean
+          description: Shirabe 側で正規化 / 加工したか。
+        modificationNotice:
+          type: string
+          description: modified=true のとき付与される加工告知。
+
+    CorporationRecord:
+      type: object
+      description: 正規化済みの法人レコード（空文字列は null 化）。
+      required: [lawId, name, latest, searchExcluded]
+      properties:
+        lawId: { type: string, description: 13 桁法人番号。 }
+        name: { type: string, description: 商号。 }
+        nameKana: { type: [string, "null"], description: フリガナ。 }
+        nameEnglish: { type: [string, "null"], description: 英語表記。 }
+        corpType: { type: [string, "null"], description: 法人種別。 }
+        prefecture: { type: [string, "null"] }
+        city: { type: [string, "null"] }
+        street: { type: [string, "null"] }
+        prefectureCode: { type: [string, "null"] }
+        cityCode: { type: [string, "null"] }
+        postalCode: { type: [string, "null"] }
+        assignedAt: { type: [string, "null"], description: 法人番号指定年月日。 }
+        closedAt: { type: [string, "null"], description: 登記記録の閉鎖等年月日。 }
+        closedReason: { type: [string, "null"] }
+        successorLawId: { type: [string, "null"], description: 承継先法人番号。 }
+        latest: { type: boolean, description: 最新履歴か。 }
+        searchExcluded: { type: boolean, description: 検索対象除外か。 }
+
+    LookupResponse:
+      type: object
+      required: [corporation, attribution]
+      properties:
+        corporation: { $ref: "#/components/schemas/CorporationRecord" }
+        attribution: { $ref: "#/components/schemas/Attribution" }
+
+    SearchResponse:
+      type: object
+      required: [results, count, limit, offset, attribution]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/CorporationRecord" }
+        count: { type: integer, description: 本ページの件数。 }
+        limit: { type: integer }
+        offset: { type: integer }
+        attribution: { $ref: "#/components/schemas/Attribution" }
+
+    BatchLookupItem:
+      type: object
+      required: [lawId, valid, found, corporation]
+      properties:
+        lawId: { type: string }
+        valid: { type: boolean, description: 形式 + checksum が妥当か。 }
+        found: { type: boolean, description: registry に存在したか。 }
+        corporation:
+          oneOf:
+            - { $ref: "#/components/schemas/CorporationRecord" }
+            - { type: "null" }
+          description: 見つかった法人（なければ null）。
+
+    BatchResponse:
+      type: object
+      required: [results, attribution]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/BatchLookupItem" }
+        attribution: { $ref: "#/components/schemas/Attribution" }
+
+    ValidateResult:
+      type: object
+      required: [lawId, formatValid, checksumValid, valid, existsInRegistry]
+      properties:
+        lawId: { type: string }
+        formatValid: { type: boolean, description: 13 桁数字の形式 OK か。 }
+        checksumValid: { type: boolean, description: checksum（mod 9）一致か。 }
+        valid: { type: boolean, description: 形式 + checksum 双方 OK か。 }
+        existsInRegistry:
+          type: [boolean, "null"]
+          description: registry 実在確認。D1 未接続時は null。
+        note: { type: string, description: 補足。 }
+
+    NormalizeResult:
+      type: object
+      required: [input, normalized, corpType, corpTypePosition, baseName]
+      properties:
+        input: { type: string, description: 入力（無加工）。 }
+        normalized: { type: string, description: 正規化済み社名（NFKC + 略記展開 + 空白整理）。 }
+        corpType: { type: [string, "null"], description: 検出した法人種別語（なければ null）。 }
+        corpTypePosition:
+          type: [string, "null"]
+          enum: [prefix, suffix, null]
+          description: 法人種別語の位置。
+        baseName: { type: string, description: 法人種別語を除いた社名本体。 }
