@@ -26,6 +26,13 @@ info:
     「適宜の場所に明示」の技術的担保 + LLM 経由の出典伝搬）。Shirabe 側で正規化・加工した
     場合は `attribution.modified=true` と `modification_notice` を返します。
 
+    ## 認証（キー不要）
+    本 API は **匿名（API キー不要）で全エンドポイントを呼び出せます**。AI エージェントは
+    事前のキー発行・サインアップなしに直接利用を開始できます。将来の従量課金導入時は
+    `X-API-Key`（`shrb_` + 英数字）を **任意で** 付与してより高い上限／請求に紐付けますが、
+    キーの提示は必須ではありません（Free 枠の具体値はリリース時に確定）。OpenAPI の
+    `security` は「認証なし(`{}`)」と「ApiKeyAuth」を併記し、キー任意を機械可読に表現します。
+
     ## データ層の可用性（PoC 注記）
     本仕様は実装済みの契約を記述する **草案（draft）** です。`lookup` / `search` / `batch` は
     法人データ D1（`corporations` 表）に依存し、D1 が未 provisioning（WS-2）の間は
@@ -56,6 +63,14 @@ info:
     public site (Public Data License v1.0, Article 6), enabling source propagation through
     LLM responses. When Shirabe normalizes/derives data, `attribution.modified=true` and a
     `modification_notice` are returned.
+
+    ## Authentication (no key required)
+    **All endpoints are callable anonymously, with no API key required.** AI agents can
+    start using the API directly, without prior key issuance or sign-up. When usage-based
+    billing is introduced, an `X-API-Key` (`shrb_` + alphanumerics) may be supplied
+    **optionally** to raise limits / attach billing, but a key is never mandatory (the
+    exact free-tier quota is finalized at release). The OpenAPI `security` block lists both
+    "no auth (`{}`)" and "ApiKeyAuth" so that the optional-key contract is machine-readable.
 
     ## Data-layer availability (PoC note)
     This spec is a **draft** describing the implemented contract. `lookup` / `search` /
@@ -89,6 +104,12 @@ servers:
   - url: https://shirabe.dev
     description: Production (planned 2026-06-29 release; corporation endpoints not yet deployed)
 
+# 匿名(認証なし)で全エンドポイントを利用可能。
+# `{}`(認証なし)と ApiKeyAuth の選択肢を併記する(OpenAPI 3.1 の optional auth 表現)。
+security:
+  - {}
+  - ApiKeyAuth: []
+
 tags:
   - name: Corporation
     description: 法人番号の lookup / search / 正規化 / 検証 / batch
@@ -101,6 +122,7 @@ paths:
     get:
       tags: [System]
       operationId: corporationHealth
+      security: []
       summary: ヘルスチェック / Health check
       description: |
         デプロイ疎通とバージョン確認。`data_layer` で D1 provisioning 状態（`ready` / `unprovisioned`）を返す。
@@ -304,6 +326,16 @@ paths:
           $ref: "#/components/responses/DataLayerUnavailable"
 
 components:
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        任意の API キー（`shrb_` + 英数字）を `X-API-Key` ヘッダーに付与する。
+        匿名でも全エンドポイントを利用できるため、キーの提示は必須ではない
+        （将来の従量課金で上限引き上げ／請求紐付けに用いる）。
 
   responses:
     BadRequest:
