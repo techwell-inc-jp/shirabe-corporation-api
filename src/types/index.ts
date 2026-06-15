@@ -16,6 +16,11 @@ export interface Env {
    * 未 provisioning の間は undefined となり、依存 endpoint は 503 を返す。
    */
   CORP_DB?: D1Database;
+  /**
+   * admin データ投入 endpoint の Secret トークン。`wrangler secret put` で注入。
+   * 未設定の間は投入 endpoint が無効(503)。値はコードに直書きしない(親 §0)。
+   */
+  ADMIN_IMPORT_TOKEN?: string;
 }
 
 /**
@@ -138,6 +143,18 @@ export interface BatchLookupItem {
 export interface BatchResponse {
   results: BatchLookupItem[];
   attribution: Attribution;
+}
+
+/** admin データ投入エンドポイントの成功レスポンス。 */
+export interface AdminImportResponse {
+  /** upsert したレコード数(最新履歴のみ)。 */
+  imported: number;
+  /** 列数不正等でスキップした行数。 */
+  skipped: number;
+  /** 実行した db.batch() の回数。 */
+  batches: number;
+  /** 取込時刻(updated_at に格納した ISO 文字列)。 */
+  importedAt: string;
 }
 
 /** validate エンドポイントの結果。 */

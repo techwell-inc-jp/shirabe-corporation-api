@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type {
+  AdminImportResponse,
   ApiError,
   BatchLookupItem,
   BatchResponse,
@@ -22,6 +23,8 @@ import {
   parseSearchParams,
   type CorporationRow,
 } from "@/core/queries";
+import { buildUpsertBatches, recordsFromCsv } from "@/core/bulk-import";
+import { verifyAdminToken } from "@/core/admin-auth";
 
 /**
  * Shirabe Corporation Number API のエントリポイント。
@@ -236,6 +239,61 @@ app.post("/api/v1/corporation/batch", async (c) => {
   });
 
   const response: BatchResponse = { results: items, attribution: buildAttribution(false) };
+  return c.json(response, 200);
+});
+
+/**
+ * admin データ投入(WS-4)。国税庁 CSV 1 ファイル分(全文)を body で受け、
+ * 最新履歴を冪等 upsert する。取込ロジックは bulk-import.ts に集約(test 済み)。
+ *
+ * 認証: `X-Admin-Token` ヘッダを Secret `ADMIN_IMPORT_TOKEN` と定数時間比較。
+ *   - Secret 未設定 → 503(機能無効)
+ *   - トークン不一致/欠落 → 401
+ * データ層: CORP_DB 未 provisioning は 503。
+ *
+ * 大容量対策: 呼出側は都道府県別ファイル単位で POST する(runbook 参照)。
+ */
+app.post("/api/v1/corporation/admin/import", async (c) => {
+  const auth = verifyAdminToken(c.env.ADMIN_IMPORT_TOKEN, c.req.header("X-Admin-Token") ?? null);
+  if (auth === "disabled") {
+    return c.json<ApiError>(
+      { error: { code: "ADMIN_DISABLED", message: "Admin import is disabled (ADMIN_IMPORT_TOKEN is not set)." } },
+      503
+    );
+  }
+  if (auth === "unauthorized") {
+    return c.json<ApiError>(
+      { error: { code: "UNAUTHORIZED", message: "Valid 'X-Admin-Token' header is required." } },
+      401
+    );
+  }
+
+  if (!c.env.CORP_DB) return c.json<ApiError>(dataLayerUnavailable("admin/import"), 503);
+
+  const text = await c.req.text();
+  if (text.trim().length === 0) {
+    return c.json<ApiError>(
+      { error: { code: "INVALID_REQUEST", message: "Request body must be a non-empty NTA CSV payload." } },
+      400
+    );
+  }
+
+  let skipped = 0;
+  const records = recordsFromCsv(text, { onError: () => { skipped++; } });
+  const importedAt = new Date().toISOString();
+  const batches = buildUpsertBatches(records, importedAt);
+
+  const db = c.env.CORP_DB;
+  for (const batch of batches) {
+    await db.batch(batch.map((s) => db.prepare(s.sql).bind(...s.params)));
+  }
+
+  const response: AdminImportResponse = {
+    imported: records.length,
+    skipped,
+    batches: batches.length,
+    importedAt,
+  };
   return c.json(response, 200);
 });
 
