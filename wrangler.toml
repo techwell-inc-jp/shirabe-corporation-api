@@ -38,6 +38,10 @@ API_VERSION = "0.1.0-poc"
 # STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
 # `wrangler secret put` で注入(平文を本ファイルに書かない)。
 #
+# ADMIN_IMPORT_TOKEN: データ投入 endpoint(/api/v1/corporation/admin/import)の
+# Secret。未設定の間は投入 endpoint が 503(無効)。WS-4 投入前に注入:
+#   npx wrangler secret put ADMIN_IMPORT_TOKEN
+#
 # OpenAPI YAML をテキストモジュールとしてバンドルに取り込む設定(docs 追加後に有効化):
 # [[rules]]
 # type = "Text"

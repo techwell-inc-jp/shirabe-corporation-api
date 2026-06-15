@@ -7,13 +7,16 @@ import type { CorporationRow } from "@/core/queries";
  * - `.first<T>()` は rows[0] ?? null
  * - `.all<T>()` は { results: rows }
  *
- * route wiring(503 gate / 404 / 200 整形 / attribution)を検証する用途。
+ * route wiring(503 gate / 404 / 200 整形 / attribution / batch 投入)を検証する用途。
+ * `.batch()` は SQL を実行せず、渡された各 statement(prepare→bind 済み)の件数を
+ * batches に記録する(投入ループの回数・件数検証用)。
  *
  * @param rows handler が返す行(空配列なら not-found を表現)
  * @returns D1Database 互換のモック + 受け取った (sql, params) の記録
  */
 export function mockD1(rows: CorporationRow[]) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
+  const batches: number[] = [];
   const db = {
     prepare(sql: string) {
       return {
@@ -30,8 +33,12 @@ export function mockD1(rows: CorporationRow[]) {
         },
       };
     },
+    async batch<T>(statements: unknown[]): Promise<T[]> {
+      batches.push(statements.length);
+      return statements.map(() => ({ results: [], success: true, meta: {} })) as unknown as T[];
+    },
   };
-  return { db: db as unknown as D1Database, calls };
+  return { db: db as unknown as D1Database, calls, batches };
 }
 
 /** テスト用のサンプル法人行(law_id は実在の checksum 妥当値)。 */

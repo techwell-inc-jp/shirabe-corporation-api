@@ -37,19 +37,23 @@ npx wrangler d1 execute shirabe-corporation --remote --file db/schema.sql
 - `buildUpsertBatches(records, importedAt, batchSize)` … 冪等 upsert
   (`INSERT ... ON CONFLICT(law_id) DO UPDATE`)を `db.batch()` 単位の chunk に分割
 
-実行系は **admin import endpoint(Worker 側、Secret 認証)** で叩く想定。
-provisioning 後に次を実装して有効化する(本 PR の次段、6/29 wiring):
+実行系は **admin import endpoint**(`POST /api/v1/corporation/admin/import`、実装済み)。
+`X-Admin-Token` ヘッダを Secret `ADMIN_IMPORT_TOKEN` と定数時間比較し、body の CSV 全文を
+`recordsFromCsv` → `buildUpsertBatches` → `db.batch()` で投入する。
 
-```ts
-// 擬似コード(admin route、X-Admin-Token = Secret 検証後)
-const records = recordsFromCsv(await req.text());      // 1 ファイル分
-const batches = buildUpsertBatches(records, new Date().toISOString());
-for (const batch of batches) {
-  await env.CORP_DB.batch(
-    batch.map((s) => env.CORP_DB.prepare(s.sql).bind(...s.params))
-  );
-}
+```bash
+# Secret 注入(WS-4 投入前、初回のみ)
+npx wrangler secret put ADMIN_IMPORT_TOKEN
+
+# 都道府県別ファイルを 1 つずつ POST(例: 青森県)
+curl -X POST https://shirabe.dev/api/v1/corporation/admin/import \
+  -H "X-Admin-Token: <token>" \
+  --data-binary @02_aomori.csv
+# → { "imported": N, "skipped": M, "batches": B, "importedAt": "..." }
 ```
+
+レスポンスコード: 200(投入成功)/ 400(空 body)/ 401(トークン不正)/
+503(`ADMIN_IMPORT_TOKEN` 未設定 = `ADMIN_DISABLED`、または CORP_DB 未 provisioning)。
 
 ### 運用フロー
 
@@ -70,8 +74,8 @@ npm run test -- bulk-import     # tokenizer / upsert / chunk の回帰
 
 ---
 
-## まだ未実装(6/29 wiring で対応、本 PR スコープ外)
+## まだ未実装(6/29 wiring で対応)
 
-- [ ] admin import endpoint(Secret 認証 + 上記ループ)
+- [x] ~~admin import endpoint(Secret 認証 + 投入ループ)~~ 実装済み(`/api/v1/corporation/admin/import`)
 - [ ] 認証/従量課金 wiring(API_KEYS 共有 + Stripe meter、Free 枠 quota は経営者判断待ち)
 - [ ] OpenAPI/llms.txt 配信(live 後・staged、live 前は虚偽のため未公開)
