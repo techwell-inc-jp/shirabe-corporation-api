@@ -77,5 +77,7 @@ npm run test -- bulk-import     # tokenizer / upsert / chunk の回帰
 ## まだ未実装(6/29 wiring で対応)
 
 - [x] ~~admin import endpoint(Secret 認証 + 投入ループ)~~ 実装済み(`/api/v1/corporation/admin/import`)
-- [ ] 認証/従量課金 wiring(API_KEYS 共有 + Stripe meter、Free 枠 quota は経営者判断待ち)
+- [x] ~~Free 枠 quota 決定 + 429/license_recommend middleware~~ 実装済み(2026-06-15 サインオフ = 住所クラス
+      Free 5,000 / ¥0.5・0.3・0.1。`middleware/plan-pricing.ts` + `usage-check.ts`、scaffold)。
+      **残: routes への適用 + auth(API_KEYS 共有判断後)+ Stripe metering**(本番は inert・挙動不変)
 - [ ] OpenAPI/llms.txt 配信(live 後・staged、live 前は虚偽のため未公開)

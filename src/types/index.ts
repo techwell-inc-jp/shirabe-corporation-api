@@ -21,6 +21,34 @@ export interface Env {
    * 未設定の間は投入 endpoint が無効(503)。値はコードに直書きしない(親 §0)。
    */
   ADMIN_IMPORT_TOKEN?: string;
+  /**
+   * 月間利用量カウント KV(暦/住所と同形の `usage-monthly:{customerId}:{YYYY-MM}`)。
+   * WS-2 で provisioning + binding 有効化。未設定の間は usage-check が pass-through。
+   */
+  USAGE_LOGS?: KVNamespace;
+  /**
+   * enrich 内部 subrequest(案 X)識別トークン。calendar の enrich endpoint と共有する
+   * 共有シークレット。`X-Shirabe-Internal` がこの値と一致する subrequest は課金対象外
+   * (非計上)。未設定時は honor しない(fail-closed)。enrich live(7/1)時に同一値投入。
+   */
+  INTERNAL_ENRICH_TOKEN?: string;
+}
+
+/**
+ * ミドルウェアが Context に設定する変数の型(暦/住所と同形)。
+ * auth(API_KEYS 共有)wiring は 6/29 で実施するため、現状は optional。
+ */
+export interface AppVariables {
+  /** corporation API に対して解決されたプラン(auth 未 wiring 時は undefined)。 */
+  plan?: "free" | "starter" | "pro" | "enterprise";
+  /** 顧客識別子(匿名時は anon_<ip_hash>)。auth 未 wiring 時は undefined。 */
+  customerId?: string;
+}
+
+/** Hono アプリケーションの型パラメータ。 */
+export interface AppEnv {
+  Bindings: Env;
+  Variables: AppVariables;
 }
 
 /**
