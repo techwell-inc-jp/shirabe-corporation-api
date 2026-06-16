@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "import:corp": "node scripts/import-corporations.mjs",
     "deploy": "echo 'Deploy is performed via GitHub Actions only (禁止: wrangler deploy)' && exit 1"
   },
   "keywords": [

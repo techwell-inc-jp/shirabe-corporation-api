@@ -41,11 +41,38 @@ npx wrangler d1 execute shirabe-corporation --remote --file db/schema.sql
 `X-Admin-Token` ヘッダを Secret `ADMIN_IMPORT_TOKEN` と定数時間比較し、body の CSV 全文を
 `recordsFromCsv` → `buildUpsertBatches` → `db.batch()` で投入する。
 
+> ★★★ **大規模県は 1 POST 不可**(6/29 最大リスク): endpoint は `c.req.text()` で body
+> 全文をメモリ展開し、全 record + 全 upsert statement を同時に保持する。Workers の
+> 1 リクエスト 128MB メモリ + ボディ上限(plan により ~100MB)に対し、東京都など
+> 大規模県の県別ファイル(数十〜百 MB)をそのまま POST すると **OOM / 413** になる。
+> → **record 境界で小さく分割してから投入する**(下記 driver が自動化)。
+
+#### 推奨: 投入 driver(`scripts/import-corporations.mjs`)
+
 ```bash
 # Secret 注入(WS-4 投入前、初回のみ)
 npx wrangler secret put ADMIN_IMPORT_TOKEN
 
-# 都道府県別ファイルを 1 つずつ POST(例: 青森県)
+# 1) dry-run(POST せず: 各ファイルのサイズ・推定 record 数・分割 chunk 数を出す)
+node scripts/import-corporations.mjs --dir ./nta-csv --dry-run
+
+# 2) 本投入(token は環境変数で渡す。引数に平文を書かない)
+ADMIN_IMPORT_TOKEN=*** node scripts/import-corporations.mjs \
+  --dir ./nta-csv --endpoint https://shirabe.dev/api/v1/corporation/admin/import
+```
+
+driver の挙動:
+- `--dir` 内の `*.csv` を **名前昇順(= 県コード順)** で順次処理
+- 各ファイルを **record 境界(引用符内改行を壊さない)** で `--max-bytes`(既定 8MiB)以下の
+  chunk に貪欲分割 → chunk ごとに POST
+- POST は 5xx / ネットワーク失敗で指数バックオフ・リトライ(4xx は即停止)
+- **冪等**: upsert 収束のため中断後の再実行・同一ファイル再投入が安全
+- 分割ロジック(`splitIntoChunks` / `recordSpans`)は `test/import-corporations.test.ts` で
+  ロスレス結合・境界安全・byte 上限を回帰検証済み
+
+#### 低レベル(単一ファイルを直接 POST、小ファイルのみ)
+
+```bash
 curl -X POST https://shirabe.dev/api/v1/corporation/admin/import \
   -H "X-Admin-Token: <token>" \
   --data-binary @02_aomori.csv
@@ -57,19 +84,22 @@ curl -X POST https://shirabe.dev/api/v1/corporation/admin/import \
 
 ### 運用フロー
 
-1. 月次全件: 47 ファイルを順次 POST(各ファイル内は最新履歴のみ採用)
-2. 日次差分: 差分 CSV を同 endpoint へ POST(latest=1 行が既存を upsert で置換)
-3. 冪等性: 同一ファイル再 POST は安全(law_id 競合で UPDATE に収束)
+1. 月次全件: 47 ファイルを driver で順次投入(各ファイル内は最新履歴のみ採用)
+2. 日次差分: 差分 CSV を同 driver / endpoint へ POST(latest=1 行が既存を upsert で置換)
+3. 冪等性: 同一ファイル再投入は安全(law_id 競合で UPDATE に収束)
 
 ### 投入前の検証(dry-run、binding 不要)
 
-ダウンロードした CSV サンプルに対し、Vitest 環境で件数・列整合を確認できる:
-
 ```bash
-npm run test -- bulk-import     # tokenizer / upsert / chunk の回帰
+# 実ファイルのサイズ・record 数・分割数を一覧(POST しない)
+node scripts/import-corporations.mjs --dir ./nta-csv --dry-run
+
+# tokenizer / upsert / chunk + 分割 driver の回帰
+npm run test -- bulk-import
+npm run test -- import-corporations
 ```
 
-実ファイルのパース確認は `recordsFromCsv(fs.readFileSync(path,'utf8'), { onError })` を
+列整合の深い検証は `recordsFromCsv(fs.readFileSync(path,'utf8'), { onError })` を
 一時テストで評価する(onError で列数不正行を観測)。
 
 ---
@@ -77,6 +107,7 @@ npm run test -- bulk-import     # tokenizer / upsert / chunk の回帰
 ## まだ未実装(6/29 wiring で対応)
 
 - [x] ~~admin import endpoint(Secret 認証 + 投入ループ)~~ 実装済み(`/api/v1/corporation/admin/import`)
+- [x] ~~投入 driver(47 県順次 + record 境界分割 + dry-run + リトライ)~~ 実装済み(`scripts/import-corporations.mjs`、`npm run import:corp`)
 - [x] ~~Free 枠 quota 決定 + 429/license_recommend middleware~~ 実装済み(2026-06-15 サインオフ = 住所クラス
       Free 5,000 / ¥0.5・0.3・0.1。`middleware/plan-pricing.ts` + `usage-check.ts`、scaffold)。
       **残: routes への適用 + auth(API_KEYS 共有判断後)+ Stripe metering**(本番は inert・挙動不変)
