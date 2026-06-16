@@ -29,11 +29,13 @@ API_VERSION = "0.1.0-poc"
 # database_name = "shirabe-corporation"
 # database_id = "<PoC 後に設定>"
 #
-# API_KEYS: 暦/住所と同一の集約 namespace を共有予定(#19 hub: cross-API は
-# 既存 API_KEYS 構造で実現可)。共有判断確定後に有効化。
-# [[kv_namespaces]]
-# binding = "API_KEYS"
-# id = "<address/calendar と同一 namespace>"
+# API_KEYS: 暦/住所/text と同一の集約 namespace を**共有**(2026-06-16 経営者サインオフ ①)。
+# #19 hub: cross-API は既存 API_KEYS 構造で実現。corp は読み取り専用(発行は calendar webhook)。
+# per-request key(`{sha256hex}`)+ Hub license(`license:{key}`)を本 namespace から解決。
+[[kv_namespaces]]
+binding = "API_KEYS"
+id = "3b6bfff407974b7cbf79ded8e184c1a6"
+preview_id = "3b6bfff407974b7cbf79ded8e184c1a6"
 #
 # STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
 # `wrangler secret put` で注入(平文を本ファイルに書かない)。

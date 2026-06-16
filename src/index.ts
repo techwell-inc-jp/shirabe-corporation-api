@@ -5,8 +5,8 @@ import type {
   ApiError,
   BatchLookupItem,
   BatchResponse,
+  AppEnv,
   CorporationRecord,
-  Env,
   LookupResponse,
   SearchResponse,
   ValidateResult,
@@ -25,6 +25,8 @@ import {
 } from "@/core/queries";
 import { buildUpsertBatches, recordsFromCsv } from "@/core/bulk-import";
 import { verifyAdminToken } from "@/core/admin-auth";
+import { authMiddleware } from "@/middleware/auth";
+import { usageCheckMiddleware } from "@/middleware/usage-check";
 
 /**
  * Shirabe Corporation Number API のエントリポイント。
@@ -33,13 +35,24 @@ import { verifyAdminToken } from "@/core/admin-auth";
  * D1 依存 endpoint(lookup / search / batch)は query ロジックを実装済みで、
  * D1 binding(CORP_DB)が未 provisioning(WS-2)の間は 503 を返す(provisioning 後は無改修で稼働)。
  */
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
+
+/**
+ * 計測対象の公開 API ルート(auth → usage-check を適用)。
+ * health(公開疎通)と admin/import(独自 X-Admin-Token 認証)は **対象外**。
+ * auth は plan/customerId を Context に設定し、usage-check が月間上限ゲートを掛ける
+ * (binding 未設定の間は両者とも pass-through = inert)。
+ */
+const METERED_ROUTES = ["validate", "lookup", "search", "normalize", "batch"] as const;
+for (const route of METERED_ROUTES) {
+  app.use(`/api/v1/corporation/${route}`, authMiddleware, usageCheckMiddleware);
+}
 
 /** D1 データ層が未 provisioning のときに返すエラーコード。 */
 const DATA_LAYER_UNAVAILABLE = "DATA_LAYER_UNAVAILABLE";
 
 /** リクエスト body を JSON として読む(失敗時は null)。 */
-async function readJson(c: Context<{ Bindings: Env }>): Promise<unknown> {
+async function readJson(c: Context<AppEnv>): Promise<unknown> {
   try {
     return await c.req.json();
   } catch {

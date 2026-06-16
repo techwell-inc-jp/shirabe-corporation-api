@@ -110,5 +110,9 @@ npm run test -- import-corporations
 - [x] ~~投入 driver(47 県順次 + record 境界分割 + dry-run + リトライ)~~ 実装済み(`scripts/import-corporations.mjs`、`npm run import:corp`)
 - [x] ~~Free 枠 quota 決定 + 429/license_recommend middleware~~ 実装済み(2026-06-15 サインオフ = 住所クラス
       Free 5,000 / ¥0.5・0.3・0.1。`middleware/plan-pricing.ts` + `usage-check.ts`、scaffold)。
-      **残: routes への適用 + auth(API_KEYS 共有判断後)+ Stripe metering**(本番は inert・挙動不変)
+- [x] ~~auth middleware(共有 API_KEYS namespace から per-request key + Hub license 解決)+ routes 適用~~
+      実装済み(2026-06-16 ① 共有サインオフ。`middleware/auth.ts` + `core/license.ts` + `middleware/api-key.ts`、
+      metered routes = validate/lookup/search/normalize/batch に auth→usage-check 適用、health/admin は対象外。
+      `wrangler.toml` の API_KEYS binding 有効化。**API_KEYS 未 binding / USAGE_LOGS 未 provisioning の間は inert**)
+- [ ] **残(6/29 wiring)**: USAGE_LOGS(corp 専用 namespace)provisioning + usage-logger 増分 + Stripe metering
 - [ ] OpenAPI/llms.txt 配信(live 後・staged、live 前は虚偽のため未公開)
