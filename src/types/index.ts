@@ -22,10 +22,18 @@ export interface Env {
    */
   ADMIN_IMPORT_TOKEN?: string;
   /**
-   * 月間利用量カウント KV(暦/住所と同形の `usage-monthly:{customerId}:{YYYY-MM}`)。
+   * 月間利用量カウント KV(`usage-monthly:{customerId}:{YYYY-MM}`)。
+   * ★ corp 専用 namespace(cross-API quota 衝突回避のため共有しない)。
    * WS-2 で provisioning + binding 有効化。未設定の間は usage-check が pass-through。
    */
   USAGE_LOGS?: KVNamespace;
+  /**
+   * 認証用 KV(per-request key の `{sha256hex}` + Hub license の `license:{key}`)。
+   * ★ 暦/住所/text と同一の集約 namespace を**共有**(2026-06-16 経営者サインオフ ①)。
+   * 発行・書込は calendar の webhook に集約し、corp は読み取り専用。
+   * 未 binding の間は auth が匿名 Free に pass-through(inert・挙動不変)。
+   */
+  API_KEYS?: KVNamespace;
   /**
    * enrich 内部 subrequest(案 X)識別トークン。calendar の enrich endpoint と共有する
    * 共有シークレット。`X-Shirabe-Internal` がこの値と一致する subrequest は課金対象外
