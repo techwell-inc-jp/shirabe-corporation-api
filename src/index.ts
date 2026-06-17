@@ -27,6 +27,7 @@ import { buildUpsertBatches, recordsFromCsv } from "@/core/bulk-import";
 import { verifyAdminToken } from "@/core/admin-auth";
 import { authMiddleware } from "@/middleware/auth";
 import { usageCheckMiddleware } from "@/middleware/usage-check";
+import { usageLoggerMiddleware } from "@/middleware/usage-logger";
 
 /**
  * Shirabe Corporation Number API のエントリポイント。
@@ -38,14 +39,16 @@ import { usageCheckMiddleware } from "@/middleware/usage-check";
 const app = new Hono<AppEnv>();
 
 /**
- * 計測対象の公開 API ルート(auth → usage-check を適用)。
+ * 計測対象の公開 API ルート(auth → usage-check → usage-logger を適用)。
  * health(公開疎通)と admin/import(独自 X-Admin-Token 認証)は **対象外**。
- * auth は plan/customerId を Context に設定し、usage-check が月間上限ゲートを掛ける
- * (binding 未設定の間は両者とも pass-through = inert)。
+ * auth は plan/customerId を Context に設定し、usage-check が月間上限ゲートを掛け、
+ * usage-logger が成功レスポンスを USAGE_LOGS KV に計上する(usage-check より内側 =
+ * 429 は計上しない / 案 X 内部 enrich は非計上)。
+ * binding 未設定の間は 3 者とも pass-through / 非計上 = inert(本番挙動不変)。
  */
 const METERED_ROUTES = ["validate", "lookup", "search", "normalize", "batch"] as const;
 for (const route of METERED_ROUTES) {
-  app.use(`/api/v1/corporation/${route}`, authMiddleware, usageCheckMiddleware);
+  app.use(`/api/v1/corporation/${route}`, authMiddleware, usageCheckMiddleware, usageLoggerMiddleware);
 }
 
 /** D1 データ層が未 provisioning のときに返すエラーコード。 */
