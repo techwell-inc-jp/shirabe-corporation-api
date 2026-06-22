@@ -1,0 +1,47 @@
+name: Deploy
+
+# corp は npm（package-lock.json、住所/text と同じ）。
+# test→deploy ゲート構造は calendar deploy.yml 流用、npm ツールチェーンは address deploy-workers.yml 流用。
+# ★ main へのマージ＝本番デプロイ発火。corp Worker 新規作成 + shirabe.dev/api/v1/corporation/* ルート確立 = 6/29 リリース trigger。
+# 前提 Secret（corp repo に登録要、未登録なら deploy step が失敗）: CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID。
+# ★ Node 22 必須: corp の locked wrangler 4.97.0 は engines.node ">=22.0.0"。
+#   Node 20 だと npm ci / wrangler 起動前に exit 1（text-api で発生した同型インシデント、2026-06-19 verify 済）。20 へ戻さないこと。
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
