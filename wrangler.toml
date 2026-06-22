@@ -33,7 +33,7 @@ API_VERSION = "0.1.0-poc"
 [[d1_databases]]
 binding = "CORP_DB"
 database_name = "shirabe-corporation"
-database_id = "REPLACE_AT_6_29_PROVISIONING"  # ← 6/29: wrangler d1 create の出力 database_id へ差し替え
+database_id = "6bfc82f2-9667-4e4d-afde-97a7ca0e4a90"  # 2026-06-22 provisioning: wrangler d1 create shirabe-corporation
 
 # API_KEYS: 暦/住所/text と同一の集約 namespace を**共有**(2026-06-16 経営者サインオフ ①)。
 # #19 hub: cross-API は既存 API_KEYS 構造で実現。corp は読み取り専用(発行は calendar webhook)。
@@ -50,8 +50,8 @@ preview_id = "3b6bfff407974b7cbf79ded8e184c1a6"
 # で namespace id を取得し下記へ記入。
 [[kv_namespaces]]
 binding = "USAGE_LOGS"
-id = "REPLACE_AT_6_29_PROVISIONING"           # ← 6/29: wrangler kv namespace create の出力 id へ差し替え
-preview_id = "REPLACE_AT_6_29_PROVISIONING"
+id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"        # 2026-06-22 provisioning: wrangler kv namespace create USAGE_LOGS_CORPORATION
+preview_id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"
 #
 # STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
 # `wrangler secret put` で注入(平文を本ファイルに書かない)。
