@@ -17,18 +17,24 @@ zone_name = "shirabe.dev"
 [vars]
 API_VERSION = "0.1.0-poc"
 
-# === bindings(PoC 確定後に有効化、現時点では未 commit)===
+# === bindings ===
 #
-# D1: 全件 ~500 万社 = KV 1 namespace(1GB)超過見込み。D1 主体が有力候補だが、
-# 全件 CSV 実サイズ実測で最終確定するまで binding を commit しない(measure-first)。
-# 確定後:
+# ★★ 6/29 provisioning DRAFT(run-of-show
+#    `../shirabe-assets/knowledge/20260619-corp-launch-ops-sequence.md` Step 1)。
+#    CORP_DB / USAGE_LOGS の binding 構造を先行配置し、6/29 当日は **id 文字列だけ**を
+#    実値へ差し替える形にしてある(コードは両 binding 未設定でも 503 / inert で動く = 本番挙動不変)。
+# ★★ placeholder id のまま deploy / main マージしてはならない。順序 = 経営者が D1/KV を作成 →
+#    下記 id を実値へ記入(本 PR)→ #11(deploy.yml)マージ → main push = deploy。
+#    measure-first は解消済み(全国 CSV 実測 ~1.17GB、2026-06-08 → KV 1GB 超過 → D1 主体で確定)。
+
+# D1: 法人全件 ~500 万社を保持。6/29 に
 #   npx wrangler d1 create shirabe-corporation
-# で database_id を取得し以下を有効化:
-# [[d1_databases]]
-# binding = "CORP_DB"
-# database_name = "shirabe-corporation"
-# database_id = "<PoC 後に設定>"
-#
+# で database_id を取得し下記へ記入。
+[[d1_databases]]
+binding = "CORP_DB"
+database_name = "shirabe-corporation"
+database_id = "6bfc82f2-9667-4e4d-afde-97a7ca0e4a90"  # 2026-06-22 provisioning: wrangler d1 create shirabe-corporation
+
 # API_KEYS: 暦/住所/text と同一の集約 namespace を**共有**(2026-06-16 経営者サインオフ ①)。
 # #19 hub: cross-API は既存 API_KEYS 構造で実現。corp は読み取り専用(発行は calendar webhook)。
 # per-request key(`{sha256hex}`)+ Hub license(`license:{key}`)を本 namespace から解決。
@@ -36,6 +42,16 @@ API_VERSION = "0.1.0-poc"
 binding = "API_KEYS"
 id = "3b6bfff407974b7cbf79ded8e184c1a6"
 preview_id = "3b6bfff407974b7cbf79ded8e184c1a6"
+
+# USAGE_LOGS: corp **専用** namespace(handoff 20260628【D】= calendar とは別系列)。
+# usage-logger が metered route の成功(2xx/3xx)を計上。bind まで inert(本番挙動不変)。
+# 6/29 に
+#   npx wrangler kv namespace create USAGE_LOGS
+# で namespace id を取得し下記へ記入。
+[[kv_namespaces]]
+binding = "USAGE_LOGS"
+id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"        # 2026-06-22 provisioning: wrangler kv namespace create USAGE_LOGS_CORPORATION
+preview_id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"
 #
 # STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
 # `wrangler secret put` で注入(平文を本ファイルに書かない)。
