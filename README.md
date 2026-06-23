@@ -1,7 +1,7 @@
 # Shirabe Corporation Number API(法人番号 API)
 
-> **Status: PoC(2026-06 着手)** — 本リポジトリは 4 本目 API のリポジトリです。
-> 6/29 リリース時に public へ切替予定(現在 private)。
+> **Status: 本番稼働中(v1.0.0)** — 本リポジトリは 4 本目 API のリポジトリです。
+> 2026-06-29 正式リリース予定、先行して本番稼働中。リポジトリは public 化済。
 
 日本の **法人番号(13 桁)** を AI エージェントから扱うための AI ネイティブ REST API。
 国税庁法人番号公表サイトのデータを基盤に、lookup / search / 表記揺れ正規化 / checksum 検証 / batch を提供します。
