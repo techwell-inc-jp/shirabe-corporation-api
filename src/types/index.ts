@@ -40,6 +40,28 @@ export interface Env {
    * (非計上)。未設定時は honor しない(fail-closed)。enrich live(7/1)時に同一値投入。
    */
   INTERNAL_ENRICH_TOKEN?: string;
+  /**
+   * Stripe Secret Key(`sk_live_*` / `sk_test_*`)。checkout / webhook が `fetch` で
+   * Stripe REST を直叩きする際に使用(`stripe` npm 不使用、親 §4)。
+   * `wrangler secret put` で注入。値はコードに直書きしない(親 §0)。
+   * 未設定の間は checkout が 500(購入不可)、webhook は署名検証以前に 500。= inert(本番挙動不変)。
+   */
+  STRIPE_SECRET_KEY?: string;
+  /**
+   * Stripe Webhook 署名検証用 Secret(`whsec_*`)。corp 専用 webhook endpoint の署名検証に使用。
+   * `wrangler secret put` で注入。未設定の間は webhook が 500 を返す(= inert)。
+   */
+  STRIPE_WEBHOOK_SECRET?: string;
+  /**
+   * corp 従量課金 metered Price ID(住所クラス、Starter ¥0.5/回)。
+   * Stripe ダッシュボードで corp 専用メーター `corporation_api_requests` 紐付けの metered Price を
+   * 作成後に注入(経営者タスク)。未設定の間は当該プランの checkout が 500。
+   */
+  STRIPE_PRICE_STARTER?: string;
+  /** corp 従量課金 metered Price ID(Pro ¥0.3/回)。 */
+  STRIPE_PRICE_PRO?: string;
+  /** corp 従量課金 metered Price ID(Enterprise ¥0.1/回)。 */
+  STRIPE_PRICE_ENTERPRISE?: string;
 }
 
 /**

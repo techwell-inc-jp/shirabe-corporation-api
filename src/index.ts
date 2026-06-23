@@ -28,6 +28,8 @@ import { verifyAdminToken } from "@/core/admin-auth";
 import { authMiddleware } from "@/middleware/auth";
 import { usageCheckMiddleware } from "@/middleware/usage-check";
 import { usageLoggerMiddleware } from "@/middleware/usage-logger";
+import { checkout } from "@/routes/checkout";
+import { webhook } from "@/routes/webhook";
 
 /**
  * Shirabe Corporation Number API のエントリポイント。
@@ -50,6 +52,16 @@ const METERED_ROUTES = ["validate", "lookup", "search", "normalize", "batch"] as
 for (const route of METERED_ROUTES) {
   app.use(`/api/v1/corporation/${route}`, authMiddleware, usageCheckMiddleware, usageLoggerMiddleware);
 }
+
+/**
+ * 単独購入(per-request key)導線。いずれも auth / usage 系ミドルウェアは通さない:
+ *  - checkout: 公開エンドポイント(新規顧客の購入開始)。Stripe 課金未構成の間は 500(inert)。
+ *  - webhook : Stripe 署名検証のみ(metadata.api="corporation" で対象判別)。発行を corp 自身が担う。
+ * 暦/住所と同じ単一 namespace 方式(共有 API_KEYS に apis.corporation を発行、customer-map は
+ * corp 専用 USAGE_LOGS。日次 reporter[scripts/stripe-daily-report.ts]が customer-map を消費)。
+ */
+app.route("/api/v1/corporation/checkout", checkout);
+app.route("/api/v1/corporation/webhook/stripe", webhook);
 
 /** D1 データ層が未 provisioning のときに返すエラーコード。 */
 const DATA_LAYER_UNAVAILABLE = "DATA_LAYER_UNAVAILABLE";
