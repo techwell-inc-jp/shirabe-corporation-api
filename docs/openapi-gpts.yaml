@@ -1,0 +1,305 @@
+openapi: 3.1.0
+
+# ---------------------------------------------------------------------------
+# Shirabe Corporation Number API — GPTs Actions 用短縮版 OpenAPI 仕様
+#
+# 用途: ChatGPT GPT Builder → Actions → Import からの貼り付け / Import URL。
+# 本家 docs/openapi.yaml は info.description が日英併記の長文で、GPT Builder UI の
+# operation.description 長(約 300 字)制限とは別に冗長なため、GPT 向けに info を圧縮し、
+# 各 operation.description を 300 字以下に抑えた版。operationId / parameters /
+# response schema は本家と同一。corp は本番稼働中(国税庁 約 579 万社、v1.0.0)のため、
+# 本家にある「draft / D1 未 provisioning → 503」注記は含めない(live 実態を反映)。
+# health は GPT に不要なため省略。
+# ---------------------------------------------------------------------------
+
+info:
+  title: Shirabe Corporation Number API
+  summary: 日本の法人番号（13 桁）を lookup / search / 正規化 / checksum 検証 / batch で扱う AI ネイティブ REST API。
+  description: |
+    Japanese corporate-number (法人番号, 13-digit "houjin bangou") API built on the National Tax Agency (NTA) public dataset. Provides number→record lookup, trade-name→number search, company-name normalization (NFKC + corporate-type split), mod-9 checksum validation, and batch lookup. All responses carry an `attribution` field (NTA Public Data License v1.0). Anonymous calls allowed; X-API-Key is optional.
+  version: "1.0.0"
+  termsOfService: https://shirabe.dev/terms
+  contact:
+    name: Shirabe (Techwell Inc., Fukuoka, Japan)
+    url: https://shirabe.dev
+
+servers:
+  - url: https://shirabe.dev
+
+security:
+  - apiKeyAuth: []
+  - {}
+
+tags:
+  - name: corporation
+
+paths:
+  /api/v1/corporation/validate:
+    post:
+      operationId: corporationValidate
+      summary: 法人番号の形式 + checksum 検証
+      description: |
+        Validate a Japanese 13-digit corporate number (法人番号): digit-format check plus the NTA mod-9 checksum. Pure logic, no data layer. Returns formatValid, checksumValid, and valid. existsInRegistry is null until registry matching is enabled.
+      tags: [corporation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResult'
+
+  /api/v1/corporation/lookup:
+    post:
+      operationId: corporationLookup
+      summary: 法人番号 1 件の lookup
+      description: |
+        Look up a Japanese corporation by its 13-digit corporate number (法人番号). Returns the latest record (name, kana, English name, corporate type, address, postal code, dates) plus NTA attribution. Invalid checksum returns 400; no match returns 404.
+      tags: [corporation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LookupRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LookupResponse'
+
+  /api/v1/corporation/search:
+    post:
+      operationId: corporationSearch
+      summary: 商号の前方一致検索
+      description: |
+        Search Japanese corporations by trade-name prefix (商号前方一致). Optional prefecture_code / city_code filters and limit/offset paging (defaults to latest, non-excluded records). Returns matching records, a count, paging echo, and NTA attribution.
+      tags: [corporation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+
+  /api/v1/corporation/normalize:
+    post:
+      operationId: corporationNormalize
+      summary: 法人名の正規化
+      description: |
+        Normalize a Japanese company name: NFKC, expand bracket abbreviations (㈱ → 株式会社), collapse repeated whitespace, and detect/split the corporate-type word (株式会社, 一般社団法人, etc.) from the base name. Pure logic, no registry match.
+      tags: [corporation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NormalizeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NormalizeResult'
+
+  /api/v1/corporation/batch:
+    post:
+      operationId: corporationBatch
+      summary: 複数法人番号の一括 lookup
+      description: |
+        Batch lookup up to 100 Japanese corporate numbers in one call. Invalid-checksum ids return valid=false without a DB hit; input order is preserved. Returns a per-id array of {lawId, valid, found, corporation} plus NTA attribution.
+      tags: [corporation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchResponse'
+
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    ValidateRequest:
+      type: object
+      required: [law_id]
+      properties:
+        law_id:
+          type: string
+          example: "1234567890123"
+
+    LookupRequest:
+      type: object
+      required: [law_id]
+      properties:
+        law_id:
+          type: string
+          example: "1234567890123"
+
+    SearchRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: テックウェル
+        prefecture_code:
+          type: string
+          example: "40"
+        city_code:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+        include_excluded:
+          type: boolean
+          default: false
+
+    NormalizeRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: ㈱テックウェル
+
+    BatchRequest:
+      type: object
+      required: [law_ids]
+      properties:
+        law_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: string }
+          example: ["1234567890123", "9876543210987"]
+
+    Attribution:
+      type: object
+      required: [source, provider, license, licenseUrl, notice, modified]
+      properties:
+        source: { type: string, example: 国税庁法人番号公表サイト }
+        provider: { type: string, example: 国税庁 }
+        license: { type: string, example: 公共データ利用規約(第1.0版) }
+        licenseUrl: { type: string, format: uri }
+        notice: { type: string }
+        modified: { type: boolean }
+        modificationNotice: { type: string }
+
+    CorporationRecord:
+      type: object
+      required: [lawId, name, latest, searchExcluded]
+      properties:
+        lawId: { type: string }
+        name: { type: string }
+        nameKana: { type: [string, "null"] }
+        nameEnglish: { type: [string, "null"] }
+        corpType: { type: [string, "null"] }
+        prefecture: { type: [string, "null"] }
+        city: { type: [string, "null"] }
+        street: { type: [string, "null"] }
+        prefectureCode: { type: [string, "null"] }
+        cityCode: { type: [string, "null"] }
+        postalCode: { type: [string, "null"] }
+        assignedAt: { type: [string, "null"] }
+        closedAt: { type: [string, "null"] }
+        closedReason: { type: [string, "null"] }
+        successorLawId: { type: [string, "null"] }
+        latest: { type: boolean }
+        searchExcluded: { type: boolean }
+
+    ValidateResult:
+      type: object
+      required: [lawId, formatValid, checksumValid, valid, existsInRegistry]
+      properties:
+        lawId: { type: string }
+        formatValid: { type: boolean }
+        checksumValid: { type: boolean }
+        valid: { type: boolean }
+        existsInRegistry: { type: [boolean, "null"] }
+        note: { type: string }
+
+    LookupResponse:
+      type: object
+      required: [corporation, attribution]
+      properties:
+        corporation: { $ref: '#/components/schemas/CorporationRecord' }
+        attribution: { $ref: '#/components/schemas/Attribution' }
+
+    SearchResponse:
+      type: object
+      required: [results, count, limit, offset, attribution]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/CorporationRecord' }
+        count: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        attribution: { $ref: '#/components/schemas/Attribution' }
+
+    NormalizeResult:
+      type: object
+      required: [input, normalized, corpType, corpTypePosition, baseName]
+      properties:
+        input: { type: string }
+        normalized: { type: string }
+        corpType: { type: [string, "null"] }
+        corpTypePosition:
+          type: [string, "null"]
+          enum: [prefix, suffix, null]
+        baseName: { type: string }
+
+    BatchLookupItem:
+      type: object
+      required: [lawId, valid, found, corporation]
+      properties:
+        lawId: { type: string }
+        valid: { type: boolean }
+        found: { type: boolean }
+        corporation:
+          oneOf:
+            - { $ref: '#/components/schemas/CorporationRecord' }
+            - { type: "null" }
+
+    BatchResponse:
+      type: object
+      required: [results, attribution]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/BatchLookupItem' }
+        attribution: { $ref: '#/components/schemas/Attribution' }
