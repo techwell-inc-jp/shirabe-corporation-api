@@ -87,7 +87,7 @@ app.get("/api/v1/corporation/health", (c) =>
   c.json({
     status: "ok",
     api: "corporation",
-    version: c.env.API_VERSION ?? "0.0.0-poc",
+    version: c.env.API_VERSION ?? "1.0.0",
     data_layer: c.env.CORP_DB ? "ready" : "unprovisioned",
   })
 );

@@ -1,6 +1,6 @@
 {
   "name": "shirabe-corporation-api",
-  "version": "0.1.0-poc",
+  "version": "1.0.0",
   "description": "Shirabe Corporation Number API — Japanese corporate registry (法人番号) for AI agents. Cloudflare Workers + D1.",
   "type": "module",
   "private": true,

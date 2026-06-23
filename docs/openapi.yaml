@@ -78,7 +78,7 @@ info:
     yet provisioned (WS-2) they return `503 DATA_LAYER_UNAVAILABLE` (logic is implemented;
     binding `CORP_DB` enables them with no code change). `health` / `validate` / `normalize`
     are pure-logic and always available.
-  version: "0.1.0-poc"
+  version: "1.0.0"
   termsOfService: https://shirabe.dev/terms
   contact:
     name: Shirabe (Techwell Inc., Fukuoka, Japan)
@@ -136,8 +136,8 @@ paths:
               example:
                 status: ok
                 api: corporation
-                version: "0.1.0-poc"
-                data_layer: unprovisioned
+                version: "1.0.0"
+                data_layer: ready
 
   /api/v1/corporation/validate:
     post:
