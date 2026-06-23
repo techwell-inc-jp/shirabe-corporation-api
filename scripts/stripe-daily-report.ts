@@ -3,27 +3,26 @@
  *
  * corp の usage-logger が Cloudflare KV (USAGE_LOGS = corp 専用 namespace) に蓄積した
  * 日次利用量を Cloudflare REST API 経由で取得し、Stripe Billing Meter Events API に送信する。
- * calendar の `scripts/stripe-daily-report.ts` を corp 向けにミラーし、以下 2 点のみ差し替える:
+ * calendar の `scripts/stripe-daily-report.ts` を corp 向けにミラーし、以下 1 点のみ差し替える:
  *
- *  1. **usage は corp 専用 namespace、customer-map は calendar namespace**（2-namespace 構成）。
- *     corp の usage-logger は corp 専用 USAGE_LOGS (`94f92f2a…`) に計上する一方、内部 customerId →
- *     Stripe customerId のマッピング `stripe:customer-map` は **calendar の webhook が calendar の
- *     USAGE_LOGS (`00229f60…`) に cross-API aware で保守する**(src/routes/webhook.ts)。
- *     よって usage は corp namespace から、customer-map は calendar namespace から読む。
- *  2. **メーターイベント名 = `corporation_api_requests`**(corp 専用メーター)。
- *     corp の従量単価(¥0.5/0.3/0.1、住所クラス)は calendar(¥0.05/0.03/0.01)の 10 倍であり、
- *     同一メーターに混在させると価格が破綻する。Stripe 側で corp 専用メーター + corp metered
- *     Price を作成し、その event_name を本スクリプトに合わせる(既定値は下記、env で上書き可)。
+ *  - **メーターイベント名 = `corporation_api_requests`**(corp 専用メーター)。
+ *    corp の従量単価(¥0.5/0.3/0.1、住所クラス)は calendar(¥0.05/0.03/0.01)の 10 倍であり、
+ *    同一メーターに混在させると価格が破綻する。Stripe 側で corp 専用メーター + corp metered
+ *    Price を作成し、その event_name を本スクリプトに合わせる(既定値は下記、env で上書き可)。
+ *
+ * usage / customer-map とも **corp 自身の USAGE_LOGS namespace**(`94f92f2a…`)から読む。
+ * corp は他 API と同様に自前 checkout + webhook を持ち、per-request key 発行時に webhook が
+ * `stripe:customer-map` を corp 自 namespace に書く(calendar と同じ単一 namespace 方式)。
  *
  * 必要な環境変数:
  *   - STRIPE_SECRET_KEY            : Stripe Secret Key (sk_live_* / sk_test_*)
- *   - CLOUDFLARE_API_TOKEN         : 両 KV namespace の Read 権限を持つ API Token
+ *   - CLOUDFLARE_API_TOKEN         : corp USAGE_LOGS の Read 権限を持つ API Token
  *   - CLOUDFLARE_ACCOUNT_ID        : Cloudflare Account ID
  *
  * 任意の環境変数:
  *   - REPORT_DATE                  : 対象日 (YYYY-MM-DD)、未指定時は UTC 前日
  *   - USAGE_KV_NAMESPACE_ID        : corp USAGE_LOGS の namespace ID（既定: corp 専用 = 下記)
- *   - CUSTOMER_MAP_NAMESPACE_ID    : customer-map が格納された namespace ID（既定: calendar = 下記)
+ *   - CUSTOMER_MAP_NAMESPACE_ID    : customer-map の namespace ID（既定: usage と同一 = corp 自 namespace)
  *   - CUSTOMER_MAP_KEY             : customer-map の KV キー名（既定: "stripe:customer-map"）
  *   - METER_EVENT_NAME             : corp 専用メーターのイベント名（既定: "corporation_api_requests"）
  *
@@ -48,10 +47,10 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-/** corp 専用 USAGE_LOGS namespace（wrangler.toml の USAGE_LOGS と同一 = corp 利用量計上先）。 */
+/** corp 専用 USAGE_LOGS namespace（wrangler.toml の USAGE_LOGS と同一 = usage / customer-map 共通)。 */
 const DEFAULT_USAGE_KV_NAMESPACE_ID = "94f92f2a3f3f4bf8b3c42de8e9ff1715";
-/** customer-map を保持する calendar の USAGE_LOGS namespace（webhook が cross-API で保守）。 */
-const DEFAULT_CUSTOMER_MAP_NAMESPACE_ID = "00229f606a27479cba182f9d9da5b39c";
+/** customer-map も corp 自 namespace に保持(corp webhook が書く、calendar と同じ単一 namespace 方式)。 */
+const DEFAULT_CUSTOMER_MAP_NAMESPACE_ID = DEFAULT_USAGE_KV_NAMESPACE_ID;
 const DEFAULT_CUSTOMER_MAP_KEY = "stripe:customer-map";
 /** corp 専用メーターのイベント名（calendar の "api_requests" とは別系列、価格 10 倍差のため）。 */
 const DEFAULT_METER_EVENT_NAME = "corporation_api_requests";
