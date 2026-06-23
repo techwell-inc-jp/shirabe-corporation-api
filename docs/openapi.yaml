@@ -102,7 +102,7 @@ externalDocs:
 
 servers:
   - url: https://shirabe.dev
-    description: Production (planned 2026-06-29 release; corporation endpoints not yet deployed)
+    description: Production (2026-06-29 official release; corporation endpoints live ahead of schedule)
 
 # 匿名(認証なし)で全エンドポイントを利用可能。
 # `{}`(認証なし)と ApiKeyAuth の選択肢を併記する(OpenAPI 3.1 の optional auth 表現)。
