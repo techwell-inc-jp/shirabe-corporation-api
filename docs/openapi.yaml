@@ -33,11 +33,11 @@ info:
     キーの提示は必須ではありません（Free 枠の具体値はリリース時に確定）。OpenAPI の
     `security` は「認証なし(`{}`)」と「ApiKeyAuth」を併記し、キー任意を機械可読に表現します。
 
-    ## データ層の可用性（PoC 注記）
-    本仕様は実装済みの契約を記述する **草案（draft）** です。`lookup` / `search` / `batch` は
-    法人データ D1（`corporations` 表）に依存し、D1 が未 provisioning（WS-2）の間は
-    `503 DATA_LAYER_UNAVAILABLE` を返します（ロジックは実装済み、binding を足せば無改修で稼働）。
-    `health` / `validate` / `normalize` はデータ層不要の純ロジックで常時稼働します。
+    ## データ層の可用性
+    本 API は **本番稼働中** です。`lookup` / `search` / `batch` は国税庁法人番号データ
+    （`corporations` 表）を参照します。データ層が一時的に利用できない場合に限り
+    `503 DATA_LAYER_UNAVAILABLE` を返します。`health` / `validate` / `normalize` は
+    データ層不要の純ロジックで常時稼働します。
 
     ---
 
@@ -72,11 +72,10 @@ info:
     exact free-tier quota is finalized at release). The OpenAPI `security` block lists both
     "no auth (`{}`)" and "ApiKeyAuth" so that the optional-key contract is machine-readable.
 
-    ## Data-layer availability (PoC note)
-    This spec is a **draft** describing the implemented contract. `lookup` / `search` /
-    `batch` depend on the corporation D1 data layer (`corporations` table); while D1 is not
-    yet provisioned (WS-2) they return `503 DATA_LAYER_UNAVAILABLE` (logic is implemented;
-    binding `CORP_DB` enables them with no code change). `health` / `validate` / `normalize`
+    ## Data-layer availability
+    This API is **live in production**. `lookup` / `search` / `batch` read from the NTA
+    corporate-number dataset (`corporations` table). They return `503 DATA_LAYER_UNAVAILABLE`
+    only if the data layer is temporarily unavailable. `health` / `validate` / `normalize`
     are pure-logic and always available.
   version: "1.0.0"
   termsOfService: https://shirabe.dev/terms
@@ -176,7 +175,7 @@ paths:
       summary: 法人番号 1 件の lookup / Look up one corporation by number
       description: |
         法人番号から最新履歴の法人情報を取得する。checksum 不正な入力は D1 を引かず 400 を返す。
-        **D1 データ層に依存**（未 provisioning の間は 503）。
+        **法人番号データ層（D1）に依存**（データ層が一時的に利用できない場合は 503）。
       requestBody:
         required: true
         content:
@@ -209,7 +208,7 @@ paths:
       summary: 商号の前方一致検索 / Search by trade name (prefix)
       description: |
         商号の前方一致で法人を検索する。都道府県コード / 市区町村コードでの絞り込みとページングに対応。
-        既定では最新履歴かつ検索対象（検索除外を含めない）に限定する。**D1 データ層に依存**（未 provisioning の間は 503）。
+        既定では最新履歴かつ検索対象（検索除外を含めない）に限定する。**法人番号データ層（D1）に依存**（データ層が一時的に利用できない場合は 503）。
       requestBody:
         required: true
         content:
@@ -298,7 +297,7 @@ paths:
       summary: 複数法人番号の一括 lookup / Batch lookup by numbers
       description: |
         複数の法人番号を一括 lookup する（最大 100 件）。checksum 不正な id は D1 を引かず `valid=false` で返し、
-        入力順を保持する。**D1 データ層に依存**（未 provisioning の間は 503）。
+        入力順を保持する。**法人番号データ層（D1）に依存**（データ層が一時的に利用できない場合は 503）。
       requestBody:
         required: true
         content:
@@ -376,14 +375,14 @@ components:
               message: "No corporation found for law_id '1234567890123'."
     DataLayerUnavailable:
       description: |
-        法人データ D1 が未 provisioning（WS-2）。ロジックは実装済みで、`CORP_DB` を bind すれば無改修で稼働する。
+        法人番号データ層（D1）が一時的に利用できない。通常は時間をおいて再試行すれば回復する。
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ApiError" }
           example:
             error:
               code: DATA_LAYER_UNAVAILABLE
-              message: "'lookup' requires the corporation D1 data layer, which is not provisioned yet (WS-2). Logic is implemented; bind CORP_DB to enable."
+              message: "The corporation data layer is temporarily unavailable. Please retry shortly."
 
   schemas:
 
