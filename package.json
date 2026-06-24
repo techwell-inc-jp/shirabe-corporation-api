@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "report:stripe": "tsx scripts/stripe-daily-report.ts",
     "import:corp": "node scripts/import-corporations.mjs",
     "deploy": "echo 'Deploy is performed via GitHub Actions only (禁止: wrangler deploy)' && exit 1"
   },
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250327.0",
     "@types/node": "^25.6.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.1.0",
     "wrangler": "^4.10.0"
