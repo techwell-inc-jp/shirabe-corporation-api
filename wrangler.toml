@@ -17,6 +17,15 @@ zone_name = "shirabe.dev"
 [vars]
 API_VERSION = "1.0.0"
 
+# Stripe Price ID（corp 単独購入 per-request、住所クラス、2026-06-24 経営者発行）。
+# メーター = corporation_api_requests / パッケージ課金 ¥500・¥300・¥100 per 1,000 ユニット
+# （= ¥0.5・¥0.3・¥0.1 /回、address per-request と同単価）。
+# Price ID は機密でないため [vars] 平文（暦/text と同方式）。
+# STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET は `wrangler secret put` で注入（平文を本ファイルに書かない、親 §0）。
+STRIPE_PRICE_STARTER = "price_1TlePbDV2wkNs8tVamG6lTYP"
+STRIPE_PRICE_PRO = "price_1TleRXDV2wkNs8tVJceaJymq"
+STRIPE_PRICE_ENTERPRISE = "price_1TleSCDV2wkNs8tVK0jYbJtA"
+
 # === bindings ===
 #
 # ★★ 6/29 provisioning DRAFT(run-of-show
