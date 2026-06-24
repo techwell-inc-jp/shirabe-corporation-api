@@ -20,6 +20,11 @@
 import { Hono } from "hono";
 import type { AppEnv } from "@/types";
 import { sha256Hex } from "@/util/sha256";
+import {
+  resolveApiKeyFromSession,
+  renderCheckoutSuccessPage,
+  renderCheckoutCancelPage,
+} from "@/pages/checkout-success";
 
 export const checkout = new Hono<AppEnv>();
 
@@ -236,6 +241,27 @@ checkout.post("/", async (c) => {
 
   return c.json({ checkout_url: checkoutUrl });
 });
+
+/**
+ * GET /api/v1/corporation/checkout/success?session_id=cs_xxx
+ * Stripe の success_url リダイレクト先。session から API キーを解決して表示する。
+ * (本 route 未登録で決済後 404 → 顧客がキーを受け取れない不具合の是正)
+ */
+checkout.get("/success", async (c) => {
+  const sessionId = c.req.query("session_id");
+  const keyResult = await resolveApiKeyFromSession(
+    sessionId,
+    c.env.STRIPE_SECRET_KEY,
+    c.env.USAGE_LOGS
+  );
+  return c.html(renderCheckoutSuccessPage(sessionId, keyResult));
+});
+
+/**
+ * GET /api/v1/corporation/checkout/cancel
+ * Stripe の cancel_url リダイレクト先。
+ */
+checkout.get("/cancel", (c) => c.html(renderCheckoutCancelPage()));
 
 // テスト用 export
 export { generateApiKey, VALID_PLANS };

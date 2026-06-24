@@ -179,3 +179,46 @@ describe("generateApiKey / VALID_PLANS", () => {
     expect([...VALID_PLANS]).toEqual(["starter", "pro", "enterprise"]);
   });
 });
+
+describe("GET /api/v1/corporation/checkout/success — 決済完了ページ(404 是正)", () => {
+  it("session_id なしでも 200 HTML(キー未解決のフォールバック)", async () => {
+    const res = await app.request("/api/v1/corporation/checkout/success", {}, { API_VERSION: "test" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("ご契約ありがとうございます");
+    expect(html).toContain("一度しか表示されません");
+  });
+
+  it("Stripe session + USAGE_LOGS の checkout-pending から API キー平文を表示", async () => {
+    const { kv } = statefulKV();
+    const apiKey = generateApiKey();
+    const hash = await import("@/util/sha256").then((m) => m.sha256Hex(apiKey));
+    await kv.put(
+      `checkout-pending:${hash}`,
+      JSON.stringify({ apiKey, plan: "starter", email: "a@b.com" })
+    );
+    vi.stubGlobal("fetch", async () =>
+      new Response(JSON.stringify({ metadata: { apiKeyHash: hash, plan: "starter" } }), { status: 200 })
+    );
+    const res = await app.request(
+      "/api/v1/corporation/checkout/success?session_id=cs_test_123",
+      {},
+      { API_VERSION: "test", STRIPE_SECRET_KEY: "sk_test_x", USAGE_LOGS: kv }
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(apiKey);
+    expect(html).toContain("starter");
+  });
+});
+
+describe("GET /api/v1/corporation/checkout/cancel — キャンセルページ", () => {
+  it("200 HTML(請求未発生の案内)", async () => {
+    const res = await app.request("/api/v1/corporation/checkout/cancel", {}, { API_VERSION: "test" });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("キャンセル");
+    expect(html).toContain("請求は発生していません");
+  });
+});
