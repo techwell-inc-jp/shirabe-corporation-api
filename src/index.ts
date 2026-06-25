@@ -30,6 +30,7 @@ import { usageCheckMiddleware } from "@/middleware/usage-check";
 import { usageLoggerMiddleware } from "@/middleware/usage-logger";
 import { checkout } from "@/routes/checkout";
 import { webhook } from "@/routes/webhook";
+import { keysReissue } from "@/routes/keys-reissue";
 
 /**
  * Shirabe Corporation Number API のエントリポイント。
@@ -62,6 +63,13 @@ for (const route of METERED_ROUTES) {
  */
 app.route("/api/v1/corporation/checkout", checkout);
 app.route("/api/v1/corporation/webhook/stripe", webhook);
+
+/**
+ * キー再発行(認証非通過。METERED_ROUTES=validate/lookup/search/normalize/batch のみ
+ * 認証適用なので自然にバイパス)。キーを失った顧客が登録メール検証で per-request key を回転する。
+ *   GET/POST /api/v1/corporation/keys/reissue + GET/POST .../reissue/confirm
+ */
+app.route("/api/v1/corporation/keys", keysReissue);
 
 /** D1 データ層が未 provisioning のときに返すエラーコード。 */
 const DATA_LAYER_UNAVAILABLE = "DATA_LAYER_UNAVAILABLE";

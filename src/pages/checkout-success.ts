@@ -142,7 +142,7 @@ export function renderCheckoutSuccessPage(
 
 <div class="card warn">
   <h2 style="margin-top:0;color:#92400e">&#x26A0; 重要: API キーは一度しか表示されません</h2>
-  <p>下に表示される API キーは、このページを離れると<strong>二度と表示されません</strong>。必ず安全な場所(パスワードマネージャ等)に保管してください。紛失した場合は再発行が必要です。</p>
+  <p>下に表示される API キーは、このページを離れると<strong>二度と表示されません</strong>。必ず安全な場所(パスワードマネージャ等)に保管してください。紛失した場合は <a href="/api/v1/corporation/keys/reissue">こちらから再発行</a> できます(登録メールの確認が必要)。</p>
 </div>
 
 <h2>あなたの API キー</h2>

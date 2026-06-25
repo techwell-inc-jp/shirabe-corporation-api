@@ -4,6 +4,26 @@
  */
 
 /**
+ * Cloudflare Email Sending の送信メッセージ(2025 launch の Email Service)。
+ * Email Routing(受信転送)とは別機能で、`send_email` binding 経由で任意宛先へ
+ * transactional メールを送る。形状は公式 Workers binding(`env.EMAIL.send({...})`)に準拠。
+ * 参照: https://developers.cloudflare.com/email-service/
+ */
+export type EmailSendMessage = {
+  to: string | string[];
+  from: { email: string; name?: string };
+  subject: string;
+  html?: string;
+  text?: string;
+  reply_to?: { email: string; name?: string };
+};
+
+/** Email Sending binding(`send_email`)の最小インターフェース。テストでモック差し替え可。 */
+export type EmailSender = {
+  send: (message: EmailSendMessage) => Promise<unknown>;
+};
+
+/**
  * Cloudflare Workers の環境バインディング。
  * PoC 段階では vars のみ。D1 binding(CORP_DB)は WS-2 provisioning 後に wrangler.toml で有効化する。
  * 型は optional とし、未 provisioning でも build/型整合が成立する(handler 側で存在を判定)。
@@ -62,6 +82,12 @@ export interface Env {
   STRIPE_PRICE_PRO?: string;
   /** corp 従量課金 metered Price ID(Enterprise ¥0.1/回)。 */
   STRIPE_PRICE_ENTERPRISE?: string;
+  /**
+   * Cloudflare Email Sending binding(`send_email`)。
+   * キー紛失時の self-serve 再発行(メール検証フロー)で検証リンクを送る。
+   * 未設定(ローカル / binding 無し)の場合、送信はスキップされ false を返す。
+   */
+  EMAIL?: EmailSender;
 }
 
 /**
