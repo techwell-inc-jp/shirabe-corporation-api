@@ -61,6 +61,13 @@ preview_id = "3b6bfff407974b7cbf79ded8e184c1a6"
 binding = "USAGE_LOGS"
 id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"        # 2026-06-22 provisioning: wrangler kv namespace create USAGE_LOGS_CORPORATION
 preview_id = "94f92f2a3f3f4bf8b3c42de8e9ff1715"
+
+# Email Sending binding(Cloudflare Email Service、2025 launch)。
+# キー紛失時の self-serve 再発行で検証リンクを noreply@shirabe.dev から送る。
+# ★ shirabe.dev は Dashboard で Email Sending にオンボード済(SPF/DKIM 自動、月3,000通無料)。
+# 未 binding の間は送信スキップ(reissue は anti-enumeration の汎用応答のみ返す = inert)。
+[[send_email]]
+name = "EMAIL"
 #
 # STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / NTA_APPLICATION_ID は
 # `wrangler secret put` で注入(平文を本ファイルに書かない)。
